@@ -1,0 +1,657 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>XAU/USD M5 Breakout Scanner — RBS / SBR</title>
+<style>
+  :root{
+    --bg:#0c1016; --panel:#141b26; --panel2:#1b2432; --border:#26313f;
+    --text:#e6edf5; --muted:#8ba0b6; --green:#22c55e; --red:#ef4444;
+    --gold:#e8b23a; --accent:#3b82f6;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+  header{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,#121924,#0c1016)}
+  header h1{font-size:16px;margin:0;font-weight:650;letter-spacing:.2px}
+  header .tag{color:var(--gold);font-weight:700}
+  .dot{width:9px;height:9px;border-radius:50%;background:#556;box-shadow:0 0 0 3px rgba(255,255,255,.03)}
+  .dot.live{background:var(--green);animation:pulse 1.6s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .wrap{display:grid;grid-template-columns:1.7fr 1fr;gap:14px;padding:14px;max-width:1200px;margin:0 auto}
+  @media(max-width:880px){.wrap{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px}
+  .card h2{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted)}
+  canvas{width:100%;height:auto;display:block;border-radius:8px;background:var(--panel2)}
+  .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .row + .row{margin-top:8px}
+  label{color:var(--muted);font-size:12px}
+  input,select{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:7px 9px;font-size:13px}
+  input[type=number]{width:74px}
+  input[type=text],input[type=password]{flex:1;min-width:140px}
+  button{background:var(--accent);border:none;color:#fff;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:600;cursor:pointer}
+  button.ghost{background:var(--panel2);border:1px solid var(--border);color:var(--text)}
+  button.gold{background:var(--gold);color:#1a1200}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+  .stat{background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:9px 11px}
+  .stat .k{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+  .stat .v{font-size:18px;font-weight:700;margin-top:2px}
+  .v.up{color:var(--green)} .v.down{color:var(--red)}
+  #log{max-height:280px;overflow:auto;display:flex;flex-direction:column;gap:7px}
+  .sig{border:1px solid var(--border);border-left-width:4px;border-radius:8px;padding:8px 10px;background:var(--panel2)}
+  .sig.RBS{border-left-color:var(--green)} .sig.SBR{border-left-color:var(--red)}
+  .sig .t1{font-weight:700}
+  .sig .t2{color:var(--muted);font-size:12px;margin-top:2px}
+  .badge{font-size:10px;padding:2px 6px;border-radius:99px;font-weight:700}
+  .badge.buy{background:rgba(34,197,94,.15);color:var(--green)}
+  .badge.sell{background:rgba(239,68,68,.15);color:var(--red)}
+  .badge.hist{background:rgba(139,160,182,.15);color:var(--muted)}
+  .badge.win{background:rgba(34,197,94,.18);color:var(--green)}
+  .badge.loss{background:rgba(239,68,68,.18);color:var(--red)}
+  .badge.open{background:rgba(232,178,58,.18);color:var(--gold)}
+  .summary{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+  .summary .wr b{font-size:22px}
+  .summary .tally .win{color:var(--green)} .summary .tally .loss{color:var(--red)} .summary .tally .open{color:var(--muted)}
+  .summary .bar{flex:1;min-width:90px;height:8px;background:rgba(239,68,68,.35);border-radius:99px;overflow:hidden}
+  .summary .bar i{display:block;height:100%;background:var(--green);transition:width .4s}
+  .hint{color:var(--muted);font-size:12px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  a{color:var(--accent)}
+  .banner{margin:0;padding:9px 12px;border-radius:8px;font-size:12px;display:none}
+  .banner.err{display:block;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.4);color:#fca5a5}
+  .mkt{font-size:12px;font-weight:600;padding:5px 11px;border-radius:999px;border:1px solid var(--border);white-space:nowrap}
+  .mkt .d{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:middle}
+  .mkt.open{color:#8ff0b0;background:rgba(34,197,94,.12);border-color:rgba(34,197,94,.4)}
+  .mkt.open .d{background:var(--green);box-shadow:0 0 6px var(--green)}
+  .mkt.closed{color:#fca5a5;background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.4)}
+  .mkt.closed .d{background:var(--red)}
+  .mkt.sim{color:var(--muted)}
+  .mkt.sim .d{background:#889}
+  .mkt.cd{color:var(--gold);border-color:rgba(232,178,58,.35);background:rgba(232,178,58,.10);font-variant-numeric:tabular-nums}
+  .mkt.cd.warn{color:#fff;background:rgba(232,178,58,.30);border-color:var(--gold)}
+</style>
+</head>
+<body>
+<header>
+  <span id="statusDot" class="dot"></span>
+  <h1><span class="tag" id="sym">XAU/USD</span> · M5 Breakout Scanner <span style="color:var(--muted);font-weight:400">— RBS / SBR retest signals</span></h1>
+  <span id="mkt" class="mkt" style="margin-left:auto"></span>
+  <span id="cd" class="mkt cd" title="Time until the current M5 candle closes"></span>
+</header>
+
+<div class="wrap">
+  <!-- LEFT: chart + status -->
+  <div style="display:flex;flex-direction:column;gap:14px">
+    <div class="card">
+      <h2>Live Chart (last 70 M5 candles)</h2>
+      <canvas id="chart" width="920" height="380"></canvas>
+      <div class="stats" style="margin-top:12px">
+        <div class="stat"><div class="k">Price</div><div class="v" id="stPrice">—</div></div>
+        <div class="stat"><div class="k">Last M5 change</div><div class="v" id="stChg">—</div></div>
+        <div class="stat"><div class="k">Active resistance</div><div class="v" id="stR" style="color:var(--red)">—</div></div>
+        <div class="stat"><div class="k">Active support</div><div class="v" id="stS" style="color:var(--green)">—</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: controls + log -->
+  <div style="display:flex;flex-direction:column;gap:14px">
+    <div class="card">
+      <h2>Data source</h2>
+      <p id="banner" class="banner"></p>
+      <div class="row">
+        <select id="mode">
+          <option value="oanda">Live — OANDA XAU/USD (broker · needs token)</option>
+          <option value="paxg">Live — Binance: Gold / BTC / ETH (no key)</option>
+          <option value="sim">Simulation (no key, runs now)</option>
+          <option value="live">Live — Twelve Data (XAU/USD · needs key)</option>
+        </select>
+        <span class="dot" id="feedDot"></span>
+        <span class="hint" id="feedInfo">idle</span>
+      </div>
+      <div class="row" id="keyRow" style="display:none">
+        <input type="password" id="apiKey" placeholder="Twelve Data API key" />
+        <button class="ghost" id="saveKey">Save</button>
+      </div>
+      <p class="hint" id="keyHint" style="display:none">
+        Free key at <a href="https://twelvedata.com/pricing" target="_blank" rel="noopener">twelvedata.com</a> (800 req/day).
+        Polls every 120s to stay under the limit.
+      </p>
+      <div class="row" id="binRow" style="display:none">
+        <label for="binSymbol">Symbol</label>
+        <select id="binSymbol">
+          <option value="PAXGUSDT">Gold — PAXG/USD (≈ XAU/USD)</option>
+          <option value="BTCUSDT">Bitcoin — BTC/USD</option>
+          <option value="ETHUSDT">Ethereum — ETH/USD</option>
+        </select>
+      </div>
+      <p class="hint" id="paxgHint">
+        Free · no key · no signup · updates 24/7 via Binance public data. Great for testing on weekends when
+        gold is closed — <b>BTC/USD</b> and <b>ETH/USD</b> move constantly. PAXG tracks spot gold. Polls every 20s.
+      </p>
+      <div class="row" id="oandaRow" style="display:none">
+        <input type="password" id="oandaToken" placeholder="OANDA API token" />
+        <select id="oandaEnv">
+          <option value="practice">Practice</option>
+          <option value="live">Live</option>
+        </select>
+        <button class="ghost" id="saveOanda">Save</button>
+      </div>
+      <p class="hint" id="oandaHint" style="display:none">
+        Free practice account at <a href="https://www.oanda.com/" target="_blank" rel="noopener">oanda.com</a> →
+        <b>Manage API Access</b> → generate a personal token. Real broker <b>XAU/USD</b>, polls every 15s.
+        Gold market is closed on weekends.
+      </p>
+      <div class="row" style="margin-top:10px">
+        <button id="startBtn" class="gold">▶ Start scanning</button>
+        <button id="stopBtn" class="ghost" disabled>■ Stop</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button id="notifBtn" class="ghost">🔔 Enable notifications</button>
+        <button id="testBtn" class="ghost">Test alert</button>
+        <button id="demoBtn" class="ghost">Inject demo pattern</button>
+        <label style="margin-left:4px"><input type="checkbox" id="tickChk"> 🔊 tick last 5s</label>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Breakout settings</h2>
+      <div class="grid2">
+        <div><label>Pivot strength</label><br><input type="number" id="cfgS" value="2" min="1" max="6"></div>
+        <div><label>Break buffer (×ATR)</label><br><input type="number" id="cfgBuf" value="0.10" step="0.05" min="0"></div>
+        <div><label>Retest tol (×ATR)</label><br><input type="number" id="cfgTol" value="0.30" step="0.05" min="0"></div>
+        <div><label>Retest timeout (bars)</label><br><input type="number" id="cfgTo" value="12" min="2" max="60"></div>
+      </div>
+      <p class="hint" style="margin-bottom:0">Higher buffer/tol = fewer, cleaner signals. Changes apply on next update.</p>
+    </div>
+
+    <div class="card">
+      <h2>Signals &amp; hit-rate</h2>
+      <div id="summary" class="summary"><span class="hint">No signals yet.</span></div>
+      <div class="row" style="font-size:11px;color:var(--muted);margin-bottom:10px">
+        <span>Target ×ATR</span><input type="number" id="cfgTgt" value="1.0" step="0.1" min="0.1" style="width:56px">
+        <span>Stop ×ATR</span><input type="number" id="cfgStp" value="0.7" step="0.1" min="0.1" style="width:56px">
+        <span>Look (bars)</span><input type="number" id="cfgLook" value="12" min="1" max="60" style="width:56px">
+      </div>
+      <div id="log"><p class="hint">No signals yet. Start scanning — or hit <b>Inject demo pattern</b> in Simulation mode to see one fire.</p></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---------------- state ---------------- */
+const $ = s => document.querySelector(s);
+let candles = [];          // {t (ms), o,h,l,c}
+let timer = null;
+let running = false;
+let lastNotifiedT = 0;     // don't notify signals older than this
+let seeded = false;        // first successful load seeds history w/o notifying
+let injectDemo = null;     // pending demo direction: 'RBS' | 'SBR'
+let lastDetect = {signals:[], R:null, S:null};
+
+/* ---------------- helpers ---------------- */
+const fmtTime = t => new Date(t).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+const cfg = () => ({
+  s: Math.max(1, +$('#cfgS').value|0),
+  bufM: +$('#cfgBuf').value, tolM: +$('#cfgTol').value,
+  timeout: Math.max(2, +$('#cfgTo').value|0)
+});
+
+/* ---------- market open/closed ---------- */
+// Forex gold (XAU/USD): opens Sun 17:00 ET, closes Fri 17:00 ET, shut all weekend.
+function forexOpen(){
+  const parts = new Intl.DateTimeFormat('en-US',
+    {timeZone:'America/New_York', weekday:'short', hour:'numeric', hour12:false}).formatToParts(new Date());
+  const wd = parts.find(p=>p.type==='weekday').value;
+  let hour = +parts.find(p=>p.type==='hour').value; if(hour===24) hour=0;
+  const d = {Sun:0,Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6}[wd];
+  if(d===6) return false;                 // Saturday
+  if(d===0 && hour<17) return false;      // Sunday before 5pm ET
+  if(d===5 && hour>=17) return false;     // Friday after 5pm ET
+  return true;
+}
+function updateMarket(){
+  const el = $('#mkt'), m = $('#mode').value;
+  const set = (cls,txt)=>{ el.className='mkt '+cls; el.innerHTML='<span class="d"></span>'+txt; };
+  if(m==='sim'){ set('sim','Simulation'); return; }
+  if(m==='paxg'){                          // Binance crypto exchange = 24/7
+    const goldProxy = $('#binSymbol').value==='PAXGUSDT';
+    set('open', goldProxy && !forexOpen() ? 'Open · 24/7 (spot gold closed)' : 'Market open · 24/7');
+    return;
+  }
+  // oanda / twelve data = real forex gold session
+  forexOpen() ? set('open','Gold market open')
+              : set('closed','Gold closed · reopens Sun 5:00 PM ET');
+}
+
+function atr(c, p=14){
+  if(c.length < 2) return 1;
+  const n = Math.min(p, c.length-1);
+  let sum = 0;
+  for(let i=c.length-n;i<c.length;i++){
+    const tr = Math.max(c[i].h-c[i].l, Math.abs(c[i].h-c[i-1].c), Math.abs(c[i].l-c[i-1].c));
+    sum += tr;
+  }
+  return sum/n || 1;
+}
+
+/* ---------- pivots + RBS/SBR state machine ---------- */
+function computePivots(c, s){
+  const ph = Array(c.length).fill(false), pl = Array(c.length).fill(false);
+  for(let i=s;i<c.length-s;i++){
+    let hi=true, lo=true;
+    for(let k=1;k<=s;k++){
+      if(c[i].h < c[i-k].h || c[i].h < c[i+k].h) hi=false;
+      if(c[i].l > c[i-k].l || c[i].l > c[i+k].l) lo=false;
+    }
+    ph[i]=hi; pl[i]=lo;
+  }
+  return {ph, pl};
+}
+
+function detect(c, o){
+  const {s} = o;
+  const A = atr(c);
+  const buffer = o.bufM * A, tol = o.tolM * A;
+  const {ph, pl} = computePivots(c, s);
+  let R=null, S=null;
+  // bullish (RBS) & bearish (SBR) phase machines
+  let bP=0, bL=null, bN=0;
+  let sP=0, sL=null, sN=0;
+  const signals=[];
+  for(let i=0;i<c.length;i++){
+    const pj = i - s;                        // pivot at pj is confirmed now
+    if(pj>=0){ if(ph[pj]) R=c[pj].h; if(pl[pj]) S=c[pj].l; }
+    const d = c[i];
+
+    // ---- RBS: break above resistance -> retest -> hold ----
+    if(bP===0){
+      if(R!=null && d.c > R+buffer){ bL=R; bP=1; bN=0; }
+    }else{
+      bN++;
+      if(d.c < bL-buffer){ bP=0; bL=null; }              // failed: fell back through
+      else if(bP===1 && d.l <= bL+tol){ bP=2; }          // pulled back to retest level
+      else if(bP===2 && d.c > bL && d.c > d.o){          // held & closed bullish
+        signals.push({i, type:'RBS', level:bL, price:d.c, t:d.t}); bP=0; bL=null;
+      }
+      if(bP!==0 && bN>o.timeout){ bP=0; bL=null; }        // gave up waiting
+    }
+
+    // ---- SBR: break below support -> retest -> reject ----
+    if(sP===0){
+      if(S!=null && d.c < S-buffer){ sL=S; sP=1; sN=0; }
+    }else{
+      sN++;
+      if(d.c > sL+buffer){ sP=0; sL=null; }
+      else if(sP===1 && d.h >= sL-tol){ sP=2; }
+      else if(sP===2 && d.c < sL && d.c < d.o){
+        signals.push({i, type:'SBR', level:sL, price:d.c, t:d.t}); sP=0; sL=null;
+      }
+      if(sP!==0 && sN>o.timeout){ sP=0; sL=null; }
+    }
+  }
+  return {signals, R, S, atr:A};
+}
+
+/* ---------------- notifications ---------------- */
+function beep(freq){
+  try{
+    const AC = window.AudioContext||window.webkitAudioContext; const ctx=new AC();
+    const osc=ctx.createOscillator(), g=ctx.createGain();
+    osc.type='sine'; osc.frequency.value=freq; osc.connect(g); g.connect(ctx.destination);
+    g.gain.setValueAtTime(0.0001,ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.3,ctx.currentTime+0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001,ctx.currentTime+0.25);
+    osc.start(); osc.stop(ctx.currentTime+0.28);
+  }catch(e){}
+}
+function notifySignal(sig){
+  const buy = sig.type==='RBS';
+  const title = buy ? '🟢 RBS Breakout — BUY setup' : '🔴 SBR Breakout — SELL setup';
+  const body = `${activeSymLabel()} M5 · level ${sig.level.toFixed(2)} · price ${sig.price.toFixed(2)} · ${fmtTime(sig.t)}`;
+  if('Notification' in window && Notification.permission==='granted'){
+    try{ new Notification(title,{body, tag:'sig-'+sig.t}); }catch(e){}
+  }
+  beep(buy?660:440); setTimeout(()=>beep(buy?880:330),170);
+}
+
+/* ---------- win/loss tracking (mini forward-test) ---------- */
+const outCfg = () => ({ tgt:+$('#cfgTgt').value, stp:+$('#cfgStp').value, look:Math.max(1,+$('#cfgLook').value|0) });
+function atrAt(c, i, p=14){
+  const n = Math.min(p, i); if(n<1) return c[i] ? (c[i].h-c[i].l)||1 : 1;
+  let sum=0; for(let k=i-n+1;k<=i;k++) sum+=Math.max(c[k].h-c[k].l, Math.abs(c[k].h-c[k-1].c), Math.abs(c[k].l-c[k-1].c));
+  return sum/n || 1;
+}
+// From the signal (entry = confirmation close), which is hit first within `look` bars:
+// target (win) or stop (loss)? 'open' if neither yet. Stop checked first each bar (conservative).
+function evalOutcome(c, sig, o){
+  const A = atrAt(c, sig.i), tgt = o.tgt*A, stp = o.stp*A, long = sig.type==='RBS';
+  for(let j=sig.i+1; j<c.length && j<=sig.i+o.look; j++){
+    const b=c[j];
+    if(long){ if(b.l <= sig.price-stp) return 'loss'; if(b.h >= sig.price+tgt) return 'win'; }
+    else    { if(b.h >= sig.price+stp) return 'loss'; if(b.l <= sig.price-tgt) return 'win'; }
+  }
+  return 'open';
+}
+function renderSignals(){
+  const o = outCfg(), sigs = lastDetect.signals;
+  let W=0,L=0,O=0; const items=[];
+  for(const s of sigs){ const r=evalOutcome(candles,s,o); r==='win'?W++:r==='loss'?L++:O++; items.push({s,r}); }
+  const decided=W+L, wr=decided?Math.round(100*W/decided):0, pct=decided?100*W/decided:0;
+  $('#summary').innerHTML = sigs.length
+    ? `<div class="wr"><b>${wr}%</b> hit-rate</div>
+       <div class="tally"><span class="win">${W}W</span> · <span class="loss">${L}L</span> · <span class="open">${O} open</span></div>
+       <div class="bar"><i style="width:${pct}%"></i></div>`
+    : '<span class="hint">No signals yet.</span>';
+  const log=$('#log');
+  if(!items.length){ log.innerHTML='<p class="hint">No signals yet. Start scanning — or use Simulation + <b>Inject demo pattern</b>.</p>'; return; }
+  log.innerHTML='';
+  for(const {s,r} of items.slice(-50).reverse()){
+    const el=document.createElement('div'); el.className='sig '+s.type;
+    const dir = s.type==='RBS' ? '<span class="badge buy">BUY</span>' : '<span class="badge sell">SELL</span>';
+    const oc = r==='win' ? '<span class="badge win">✅ win</span>' : r==='loss' ? '<span class="badge loss">❌ loss</span>' : '<span class="badge open">⏳ open</span>';
+    el.innerHTML = `<div class="t1">${s.type} — ${s.type==='RBS'?'Resistance→Support':'Support→Resistance'} ${dir} ${oc}</div>
+      <div class="t2">level <b>${s.level.toFixed(2)}</b> · entry <b>${s.price.toFixed(2)}</b> · ${fmtTime(s.t)}</div>`;
+    log.appendChild(el);
+  }
+}
+
+/* ---------- M5 candle countdown ---------- */
+let lastBoundary = 0;
+function updateCountdown(){
+  const period=5*60*1000, now=Date.now();
+  const ms = Math.ceil(now/period)*period - now, s=Math.max(0,Math.ceil(ms/1000));
+  const el=$('#cd');
+  el.textContent = `M5 close ${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+  el.className = 'mkt cd' + (s<=10 ? ' warn' : '');
+  // when a candle just closed, refetch live sources promptly for the fresh bar
+  const b = Math.floor(now/period);
+  if(lastBoundary && b>lastBoundary && running && $('#mode').value!=='sim') update();
+  lastBoundary = b;
+  if(s>=1 && s<=5 && $('#tickChk') && $('#tickChk').checked) beep(520);
+}
+
+/* ---------------- data feeds ---------------- */
+function showErr(msg){ const b=$('#banner'); if(!msg){b.className='banner';return;} b.className='banner err'; b.textContent=msg; }
+
+/* OANDA v20 — real broker XAU/USD M5 candles. CORS-enabled, needs a personal token. */
+async function fetchOanda(){
+  const token = (localStorage.getItem('oanda_token')||'').trim();
+  if(!token){ showErr('Enter your OANDA API token first (Data source → paste token → Save).'); return null; }
+  const env = localStorage.getItem('oanda_env')||'practice';
+  const host = env==='live' ? 'https://api-fxtrade.oanda.com' : 'https://api-fxpractice.oanda.com';
+  const url = host + '/v3/instruments/XAU_USD/candles?granularity=M5&count=200&price=M';
+  const ac = new AbortController(); const t = setTimeout(()=>ac.abort(), 8000);
+  try{
+    const r = await fetch(url, {headers:{'Authorization':'Bearer '+token}, signal:ac.signal}); clearTimeout(t);
+    if(r.status===401){ showErr('OANDA 401 Unauthorized — check the token, and that Practice/Live matches where you made it.'); return null; }
+    if(!r.ok){ showErr('OANDA error: HTTP '+r.status); return null; }
+    const j = await r.json();
+    if(!j.candles || !j.candles.length){ showErr('OANDA: no candles returned (gold market may be closed).'); return null; }
+    showErr(null);
+    return j.candles.map(k=>({t:new Date(k.time).getTime(), o:+k.mid.o, h:+k.mid.h, l:+k.mid.l, c:+k.mid.c}));
+  }catch(e){ clearTimeout(t); showErr('OANDA fetch failed: '+(e.name==='AbortError'?'timed out':e.message)); return null; }
+}
+
+/* Binance public data mirror — 5m klines for PAXG(gold)/BTC/ETH. No key, CORS-enabled, 24/7. */
+async function fetchPaxg(){
+  const sym = ($('#binSymbol') && $('#binSymbol').value) || 'PAXGUSDT';
+  const ac = new AbortController(); const t = setTimeout(()=>ac.abort(), 8000);
+  try{
+    const url = 'https://data-api.binance.vision/api/v3/klines?symbol='+sym+'&interval=5m&limit=200';
+    const r = await fetch(url, {signal:ac.signal}); clearTimeout(t);
+    if(!r.ok){ showErr('Binance data error: HTTP '+r.status); return null; }
+    const j = await r.json();
+    if(!Array.isArray(j) || !j.length){ showErr('Binance: unexpected response'); return null; }
+    showErr(null);
+    // kline = [openTime, open, high, low, close, volume, ...]
+    return j.map(k=>({t:k[0], o:+k[1], h:+k[2], l:+k[3], c:+k[4]}));
+  }catch(e){ clearTimeout(t); showErr('Binance fetch failed: '+(e.name==='AbortError'?'timed out':e.message)); return null; }
+}
+
+async function fetchLive(){
+  const key = (localStorage.getItem('td_key')||'').trim();
+  if(!key){ showErr('Enter your Twelve Data API key first.'); return null; }
+  const url = `https://api.twelvedata.com/time_series?symbol=XAU/USD&interval=5min&outputsize=120&format=JSON&apikey=${encodeURIComponent(key)}`;
+  const r = await fetch(url);
+  const j = await r.json();
+  if(j.status==='error' || !j.values){ showErr('Twelve Data: '+(j.message||'no data returned')); return null; }
+  showErr(null);
+  return j.values.map(v=>({
+    t:new Date(v.datetime.replace(' ','T')+'Z').getTime(),
+    o:+v.open, h:+v.high, l:+v.low, c:+v.close
+  })).reverse();   // API returns newest-first
+}
+
+/* Simulation: mean-reverting random walk that naturally forms swings */
+let simBase = 3300, simPos = 3300, simT = Date.now() - 120*5*60*1000;
+function simInit(){
+  candles = []; simPos = simBase; simT = Date.now() - 120*5*60*1000;
+  for(let i=0;i<120;i++) candles.push(simStep());
+}
+function simStep(){
+  const drift = (simBase - simPos) * 0.02;                 // gentle mean reversion
+  const shock = (Math.random()-0.5) * 6;                   // volatility ~gold
+  const o = simPos;
+  simPos = o + drift + shock;
+  const spread = 1 + Math.random()*4;
+  const h = Math.max(o,simPos) + Math.random()*spread;
+  const l = Math.min(o,simPos) - Math.random()*spread;
+  simT += 5*60*1000;
+  return {t:simT, o, h, l, c:simPos};
+}
+/* Inject a clean, real RBS/SBR sequence so the detector genuinely fires */
+function buildDemo(dir){
+  const A = atr(candles) || 5, base = candles.at(-1).c;
+  const lvl = base;                          // treat current price as the level
+  const seq = [];
+  const push = (o,c,hpad=1,lpad=1)=>{ simT+=5*60*1000;
+    seq.push({t:simT,o,h:Math.max(o,c)+hpad*A*0.3,l:Math.min(o,c)-lpad*A*0.3,c}); };
+  if(dir==='RBS'){
+    // form a resistance, break above, retest, hold
+    push(lvl-2*A, lvl);          // approach
+    push(lvl, lvl-0.4*A);        // pivot high forms
+    push(lvl-0.4*A, lvl-0.2*A);
+    push(lvl-0.2*A, lvl+0.8*A);  // BREAK above
+    push(lvl+0.8*A, lvl+0.05*A, 0.3, 2); // retest wick down to level
+    push(lvl+0.1*A, lvl+0.9*A);  // HOLD & close bullish -> RBS
+  }else{
+    push(lvl+2*A, lvl);
+    push(lvl, lvl+0.4*A);        // pivot low forms
+    push(lvl+0.4*A, lvl+0.2*A);
+    push(lvl+0.2*A, lvl-0.8*A);  // BREAK below
+    push(lvl-0.8*A, lvl-0.05*A, 2, 0.3); // retest wick up to level
+    push(lvl-0.1*A, lvl-0.9*A);  // REJECT & close bearish -> SBR
+  }
+  return seq;
+}
+
+/* ---------------- main loop ---------------- */
+async function update(){
+  const mode = $('#mode').value;
+  if(mode==='live' || mode==='paxg' || mode==='oanda'){
+    const data = mode==='paxg' ? await fetchPaxg() : mode==='oanda' ? await fetchOanda() : await fetchLive();
+    if(data){ candles = data; }
+    else { $('#feedDot').className='dot'; $('#feedInfo').textContent='⚠ feed error — see red message above'; render(); return; }
+  }else{
+    if(!candles.length) simInit();
+    if(injectDemo){ candles.push(...buildDemo(injectDemo)); injectDemo=null; }
+    else candles.push(simStep());
+    if(candles.length>400) candles = candles.slice(-400);
+  }
+  $('#feedDot').className='dot live';
+  $('#feedInfo').textContent = `${candles.length} bars · updated ${fmtTime(Date.now())}`;
+
+  const res = detect(candles, cfg());
+  lastDetect = res;
+
+  // seed on first load so old history doesn't spam notifications (history still shown in the log)
+  if(!seeded){
+    seeded = true;
+    lastNotifiedT = candles.at(-1).t;
+  }else{
+    res.signals.filter(s => s.t > lastNotifiedT).forEach(s => notifySignal(s));
+  }
+  if(candles.length) lastNotifiedT = Math.max(lastNotifiedT, candles.at(-1).t);
+  render();
+}
+
+function start(){
+  if(running) return;
+  running = true; seeded = false;
+  $('#startBtn').disabled=true; $('#stopBtn').disabled=false;
+  $('#statusDot').className='dot live';
+  $('#feedDot').className='dot live';
+  const m = $('#mode').value;
+  // instant feedback so it never feels unresponsive during the fetch
+  $('#feedInfo').textContent = m==='sim' ? 'simulating…' : 'connecting to live feed…';
+  // prompt for notification permission on first start
+  if('Notification' in window && Notification.permission==='default'){ try{ Notification.requestPermission(); }catch(e){} }
+  update();
+  timer = setInterval(update, m==='sim' ? 1600 : m==='paxg' ? 20000 : m==='oanda' ? 15000 : 120000);
+}
+function stop(){
+  running=false; clearInterval(timer); timer=null;
+  $('#startBtn').disabled=false; $('#stopBtn').disabled=true;
+  $('#statusDot').className='dot'; $('#feedDot').className='dot';
+  $('#feedInfo').textContent='stopped';
+}
+
+/* ---------------- rendering ---------------- */
+function render(){
+  if(!candles.length) return;
+  const last = candles.at(-1), prev = candles.at(-2)||last;
+  $('#stPrice').textContent = last.c.toFixed(2);
+  const chg = last.c - prev.c;
+  const chgEl = $('#stChg');
+  chgEl.textContent = (chg>=0?'+':'') + chg.toFixed(2);
+  chgEl.className = 'v ' + (chg>=0?'up':'down');
+  $('#stR').textContent = lastDetect.R!=null ? lastDetect.R.toFixed(2) : '—';
+  $('#stS').textContent = lastDetect.S!=null ? lastDetect.S.toFixed(2) : '—';
+  renderSignals();
+  drawChart();
+}
+
+function drawChart(){
+  const cv=$('#chart'), ctx=cv.getContext('2d'), W=cv.width, H=cv.height;
+  ctx.clearRect(0,0,W,H);
+  const N=70, off=Math.max(0,candles.length-N), view=candles.slice(off);
+  if(view.length<2) return;
+  let mn=Infinity,mx=-Infinity;
+  for(const c of view){ mn=Math.min(mn,c.l); mx=Math.max(mx,c.h); }
+  const pad=(mx-mn)*0.08||1; mn-=pad; mx+=pad;
+  const padL=8,padR=58,padT=8,padB=8;
+  const x=i=>padL+(W-padL-padR)*(i/(view.length-1));
+  const y=p=>padT+(H-padT-padB)*(1-(p-mn)/(mx-mn));
+  const cw=Math.max(2,(W-padL-padR)/view.length*0.62);
+
+  // price grid + right axis
+  ctx.strokeStyle='#1f2937'; ctx.fillStyle='#6b7a8d'; ctx.font='10px system-ui'; ctx.lineWidth=1;
+  for(let g=0;g<=4;g++){
+    const p=mn+(mx-mn)*g/4, yy=y(p);
+    ctx.beginPath(); ctx.moveTo(padL,yy); ctx.lineTo(W-padR,yy); ctx.stroke();
+    ctx.fillText(p.toFixed(1), W-padR+4, yy+3);
+  }
+  // candles
+  for(let i=0;i<view.length;i++){
+    const c=view[i], up=c.c>=c.o, cx=x(i);
+    ctx.strokeStyle=up?'#22c55e':'#ef4444'; ctx.fillStyle=up?'#22c55e':'#ef4444';
+    ctx.beginPath(); ctx.moveTo(cx,y(c.h)); ctx.lineTo(cx,y(c.l)); ctx.stroke();
+    const yo=y(c.o), yc=y(c.c);
+    ctx.fillRect(cx-cw/2, Math.min(yo,yc), cw, Math.max(1,Math.abs(yc-yo)));
+  }
+  // active R / S lines
+  const line=(p,color,label)=>{
+    if(p==null||p<mn||p>mx) return;
+    ctx.save(); ctx.strokeStyle=color; ctx.setLineDash([5,4]); ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(padL,y(p)); ctx.lineTo(W-padR,y(p)); ctx.stroke();
+    ctx.setLineDash([]); ctx.fillStyle=color; ctx.fillText(label, padL+2, y(p)-3); ctx.restore();
+  };
+  line(lastDetect.R, 'rgba(239,68,68,.8)', 'R');
+  line(lastDetect.S, 'rgba(34,197,94,.8)', 'S');
+  // signal markers
+  for(const s of lastDetect.signals){
+    const vi=s.i-off; if(vi<0||vi>=view.length) continue;
+    const cx=x(vi), buy=s.type==='RBS';
+    const yy = buy ? y(view[vi].l)+14 : y(view[vi].h)-14;
+    ctx.fillStyle = buy?'#22c55e':'#ef4444';
+    ctx.beginPath();
+    if(buy){ ctx.moveTo(cx,yy-8); ctx.lineTo(cx-6,yy+2); ctx.lineTo(cx+6,yy+2); }
+    else   { ctx.moveTo(cx,yy+8); ctx.lineTo(cx-6,yy-2); ctx.lineTo(cx+6,yy-2); }
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle='#cdd7e2'; ctx.fillText(s.type, cx-10, buy?yy+14:yy-8);
+  }
+}
+
+/* ---------------- wire up UI ---------------- */
+function activeSymLabel(){
+  if($('#mode').value==='paxg'){
+    return ({PAXGUSDT:'XAU/USD', BTCUSDT:'BTC/USD', ETHUSDT:'ETH/USD'})[$('#binSymbol').value] || $('#binSymbol').value;
+  }
+  return 'XAU/USD';
+}
+function syncModeUI(){
+  const m = $('#mode').value;
+  $('#keyRow').style.display   = m==='live'  ? 'flex' : 'none';
+  $('#keyHint').style.display  = m==='live'  ? 'block' : 'none';
+  $('#binRow').style.display   = m==='paxg'  ? 'flex' : 'none';
+  $('#paxgHint').style.display = m==='paxg'  ? 'block' : 'none';
+  $('#oandaRow').style.display = m==='oanda' ? 'flex' : 'none';
+  $('#oandaHint').style.display= m==='oanda' ? 'block' : 'none';
+  $('#demoBtn').style.display  = m==='sim'   ? 'inline-block' : 'none';
+  $('#sym').textContent = activeSymLabel();
+  updateMarket();
+}
+$('#mode').addEventListener('change', ()=>{ syncModeUI(); if(running) stop(); });
+$('#apiKey').value = localStorage.getItem('td_key')||'';
+$('#saveKey').addEventListener('click', ()=>{
+  localStorage.setItem('td_key', $('#apiKey').value.trim()); showErr(null);
+  $('#saveKey').textContent='Saved ✓'; setTimeout(()=>$('#saveKey').textContent='Save',1200);
+});
+// OANDA token + environment
+$('#oandaToken').value = localStorage.getItem('oanda_token')||'';
+$('#oandaEnv').value = localStorage.getItem('oanda_env')||'practice';
+$('#oandaEnv').addEventListener('change', e=>localStorage.setItem('oanda_env', e.target.value));
+$('#saveOanda').addEventListener('click', ()=>{
+  localStorage.setItem('oanda_token', $('#oandaToken').value.trim());
+  localStorage.setItem('oanda_env', $('#oandaEnv').value); showErr(null);
+  $('#saveOanda').textContent='Saved ✓'; setTimeout(()=>$('#saveOanda').textContent='Save',1200);
+});
+// Binance symbol (Gold / BTC / ETH)
+$('#binSymbol').value = localStorage.getItem('bin_symbol')||'PAXGUSDT';
+$('#binSymbol').addEventListener('change', e=>{
+  localStorage.setItem('bin_symbol', e.target.value);
+  $('#sym').textContent = activeSymLabel();
+  updateMarket();
+  seeded = false;                 // switching instrument: reseed so we don't cross-notify
+  if(running){ update(); }        // refetch the new symbol immediately
+});
+$('#startBtn').addEventListener('click', start);
+$('#stopBtn').addEventListener('click', stop);
+$('#notifBtn').addEventListener('click', async ()=>{
+  if(!('Notification' in window)){ alert('This browser has no Notification API.'); return; }
+  const p = await Notification.requestPermission();
+  $('#notifBtn').textContent = p==='granted' ? '🔔 Notifications on' : '🔔 Blocked — allow in browser';
+});
+$('#testBtn').addEventListener('click', ()=>{
+  const p = candles.length ? candles.at(-1).c : 3300;
+  notifySignal({type:'RBS', level:p, price:p, t:Date.now()});
+});
+// recompute outcomes live when target/stop/lookahead change
+['#cfgTgt','#cfgStp','#cfgLook'].forEach(id=>$(id).addEventListener('input', ()=>{ if(candles.length) renderSignals(); }));
+$('#demoBtn').addEventListener('click', ()=>{
+  if($('#mode').value!=='sim'){ alert('Demo injection works in Simulation mode.'); return; }
+  injectDemo = Math.random()<0.5 ? 'RBS':'SBR';
+  if(!running){ start(); } // start so it processes
+});
+
+// init
+$('#feedDot').className='dot';
+syncModeUI();
+setInterval(updateMarket, 30000);   // keep open/closed pill current
+updateCountdown(); setInterval(updateCountdown, 1000);   // M5 candle countdown
+simInit(); lastDetect = detect(candles, cfg()); render();
+</script>
+</body>
+</html>
